@@ -10,6 +10,17 @@ For memory allocations, no `new` statement is used, objects stored on the heap a
 
 ## Setup
 
+
+### Using the Docker container
+
+A `Dockerfile` is provided with the setup and testing already completed. To use:
+```Shell
+$ docker build --tag orderbook:latest .
+$ docker run -it --rm --name orderbook orderbook:latest
+```
+
+### Manually
+
 From root folder:
 
 ```Shell
@@ -20,6 +31,15 @@ $ # Optional. Run the unit tests.
 $ ctest --verbose
 ```
 
+## Test
+
+To run the unit tests without `ctest`, after completing the setup steps and from root folder:
+
+```Shell
+$ cd bin
+$ ./order_book_test
+```
+
 Developed using the g++ compiler, version 7.4.0.
 
 ## Run
@@ -28,16 +48,7 @@ After completing the setup steps, from root folder:
 
 ```Shell
 $ cd bin
-$ ./order_book
-```
-
-## Test
-
-To run the unit tests without `ctest`, after completing the setup steps and from root folder:
-
-```Shell
-$ cd bin
-$ ./order_book_test
+$ ./order_book 0.05 0.001
 ```
 
 ## Possible improvements
