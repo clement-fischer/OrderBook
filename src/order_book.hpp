@@ -8,17 +8,15 @@
 
 using namespace std;
 
-enum OrderStatus
-{
+enum OrderStatus {
     open,
     partial,
     executed,
     cancelled
 };
 
-class LimitOrder
-{
-private:
+class LimitOrder {
+   private:
     long long id;
     bool isBuyOrder;
     double price;
@@ -29,18 +27,17 @@ private:
     friend class OrderBook;
     friend class PriceLevel;
 
-public:
+   public:
     LimitOrder(long long orderID, bool isBuyOrder_, long quantity_, double price_);
     bool operator<(const LimitOrder &other) const;
 };
 
-class PriceLevel
-{
-private:
+class PriceLevel {
+   private:
     set<LimitOrder> orders;
     friend class OrderBook;
 
-public:
+   public:
     long long quantity;
     bool cancel(long long orderID, shared_mutex &m);
     void insert(LimitOrder order);
@@ -49,9 +46,8 @@ public:
     void update(LimitOrder &&order, shared_mutex &m);
 };
 
-class OrderBook
-{
-private:
+class OrderBook {
+   private:
     map<double, PriceLevel> buyOrders;
     map<double, PriceLevel> sellOrders;
     map<long long, LimitOrder> orders;
@@ -63,7 +59,7 @@ private:
     double tickSize;
     double precision;
 
-public:
+   public:
     OrderBook(double tickSize, double tolerance);
     bool add(LimitOrder &&order);
     bool amend(long long orderID, long quantity);

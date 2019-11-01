@@ -8,8 +8,7 @@ using namespace std;
 
 BOOST_AUTO_TEST_SUITE(OrderBookSuite)
 
-BOOST_AUTO_TEST_CASE(Insert)
-{
+BOOST_AUTO_TEST_CASE(Insert) {
     OrderBook ob = OrderBook(0.05, 0.001);
     LimitOrder lo = LimitOrder(1001, true, 100, 12.5);
     BOOST_CHECK(ob.add(move(lo)));
@@ -23,8 +22,7 @@ BOOST_AUTO_TEST_CASE(Insert)
     BOOST_CHECK(!ob.add(move(lo)));
 }
 
-BOOST_AUTO_TEST_CASE(QueryOrder)
-{
+BOOST_AUTO_TEST_CASE(QueryOrder) {
     OrderBook ob = OrderBook(0.05, 0.001);
     LimitOrder lo = LimitOrder(1001, true, 100, 12.5);
     BOOST_CHECK(ob.add(move(lo)));
@@ -36,8 +34,7 @@ BOOST_AUTO_TEST_CASE(QueryOrder)
     BOOST_CHECK(ob.queryOrder(1003) == "null, 0, 0, 0, -1, null");
 }
 
-BOOST_AUTO_TEST_CASE(QueryDepth)
-{
+BOOST_AUTO_TEST_CASE(QueryDepth) {
     OrderBook ob = OrderBook(0.05, 0.001);
     LimitOrder lo = LimitOrder(1001, true, 100, 12.5);
     BOOST_CHECK(ob.add(move(lo)));
@@ -46,8 +43,7 @@ BOOST_AUTO_TEST_CASE(QueryDepth)
     BOOST_CHECK(ob.queryDepth(true, 2) == "bid, 2, 0, 0, 0");
 }
 
-BOOST_AUTO_TEST_CASE(Cancel)
-{
+BOOST_AUTO_TEST_CASE(Cancel) {
     OrderBook ob = OrderBook(0.05, 0.001);
     LimitOrder lo = LimitOrder(1001, true, 100, 12.5);
     BOOST_CHECK(ob.add(move(lo)));
@@ -58,8 +54,7 @@ BOOST_AUTO_TEST_CASE(Cancel)
     BOOST_CHECK(!ob.cancel(1002));
 }
 
-BOOST_AUTO_TEST_CASE(AmendPosition)
-{
+BOOST_AUTO_TEST_CASE(AmendPosition) {
     OrderBook ob = OrderBook(0.05, 0.001);
     LimitOrder lo = LimitOrder(1001, true, 100, 12.5);
     BOOST_CHECK(ob.add(move(lo)));
@@ -94,8 +89,7 @@ BOOST_AUTO_TEST_CASE(AmendPosition)
     BOOST_CHECK(ob.queryOrder(1005) == "buy, 12.5, 100, 100, 2, open");
 }
 
-BOOST_AUTO_TEST_CASE(Match)
-{
+BOOST_AUTO_TEST_CASE(Match) {
     OrderBook ob = OrderBook(0.05, 0.001);
     LimitOrder lo = LimitOrder(1001, true, 100, 13.5);
     BOOST_CHECK(ob.add(move(lo)));
@@ -122,8 +116,7 @@ BOOST_AUTO_TEST_CASE(Match)
     BOOST_CHECK(ob.queryDepth(false, 1) == "ask, 1, 11.5, 50, 1");
 }
 
-BOOST_AUTO_TEST_CASE(MatchReverse)
-{
+BOOST_AUTO_TEST_CASE(MatchReverse) {
     OrderBook ob = OrderBook(0.05, 0.001);
     LimitOrder lo = LimitOrder(1001, false, 100, 13.5);
     BOOST_CHECK(ob.add(move(lo)));

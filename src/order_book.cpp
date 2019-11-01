@@ -1,42 +1,33 @@
 #include "order_book.hpp"
 
-#include <iostream>
 #include <math.h>
+#include <iostream>
 #include <sstream>
 #include <string>
 
 LimitOrder::LimitOrder(long long orderID, bool isBuyOrder_, long quantity_, double price_)
-    : id(orderID), isBuyOrder(isBuyOrder_), price(price_), quantity(quantity_), left(quantity_)
-{
+    : id(orderID), isBuyOrder(isBuyOrder_), price(price_), quantity(quantity_), left(quantity_) {
     timestamp = chrono::duration_cast<chrono::microseconds>(chrono::high_resolution_clock::now().time_since_epoch());
     status = OrderStatus::open;
 }
 
-bool LimitOrder::operator<(const LimitOrder &other) const
-{
-    if (timestamp == other.timestamp)
-    {
+bool LimitOrder::operator<(const LimitOrder &other) const {
+    if (timestamp == other.timestamp) {
         return id < other.id;
     }
 
     return timestamp < other.timestamp;
 }
 
-bool PriceLevel::cancel(long long orderID, shared_mutex &m)
-{
+bool PriceLevel::cancel(long long orderID, shared_mutex &m) {
     set<LimitOrder> &s = this->orders;
     std::unique_lock lock(m);
 
-    for (auto it = s.begin(); it != s.end(); ++it)
-    {
-        if (it->id == orderID)
-        {
-            if (s.size() == 0)
-            {
+    for (auto it = s.begin(); it != s.end(); ++it) {
+        if (it->id == orderID) {
+            if (s.size() == 0) {
                 this->quantity = 0;
-            }
-            else
-            {
+            } else {
                 this->quantity -= it->quantity;
             }
             s.erase(it);
@@ -46,24 +37,19 @@ bool PriceLevel::cancel(long long orderID, shared_mutex &m)
     return false;
 }
 
-void PriceLevel::insert(LimitOrder order)
-{
+void PriceLevel::insert(LimitOrder order) {
     this->quantity += order.left;
     this->orders.insert(move(order));
 }
 
-int PriceLevel::nItems()
-{
+int PriceLevel::nItems() {
     return this->orders.size();
 }
 
-int PriceLevel::pos(long long orderID)
-{
+int PriceLevel::pos(long long orderID) {
     int i = 0;
-    for (set<LimitOrder>::iterator it = orders.begin(); it != orders.end(); it++)
-    {
-        if (it->id == orderID)
-        {
+    for (set<LimitOrder>::iterator it = orders.begin(); it != orders.end(); it++) {
+        if (it->id == orderID) {
             return i;
         }
         i++;
@@ -71,14 +57,11 @@ int PriceLevel::pos(long long orderID)
     return -1;
 }
 
-void PriceLevel::update(LimitOrder &&order, shared_mutex &m)
-{
+void PriceLevel::update(LimitOrder &&order, shared_mutex &m) {
     set<LimitOrder> &s = this->orders;
     std::unique_lock lock(m);
-    for (auto it = s.begin(); it != s.end(); ++it)
-    {
-        if (it->id == order.id)
-        {
+    for (auto it = s.begin(); it != s.end(); ++it) {
+        if (it->id == order.id) {
             this->quantity += order.quantity - it->quantity;
             s.erase(it);
             break;
@@ -88,29 +71,23 @@ void PriceLevel::update(LimitOrder &&order, shared_mutex &m)
 }
 
 OrderBook::OrderBook(double tickSize_, double precision_)
-    : tickSize(tickSize_), precision(precision_)
-{
+    : tickSize(tickSize_), precision(precision_) {
 }
 
-bool OrderBook::add(LimitOrder &&order)
-{
+bool OrderBook::add(LimitOrder &&order) {
     long n = int(order.price / tickSize);
     double rem = fmod(order.price, tickSize);
-    if (rem < tickSize * precision || tickSize - rem < tickSize * precision)
-    {
+    if (rem < tickSize * precision || tickSize - rem < tickSize * precision) {
         // Close enough, aligning value
         order.price = n * tickSize;
-    }
-    else
-    {
+    } else {
         return false;
     }
 
     {
         std::unique_lock lock(ordersMutex);
         auto p = orders.insert({order.id, order});
-        if (!p.second)
-        {
+        if (!p.second) {
             return false;
         }
     }
@@ -125,15 +102,11 @@ bool OrderBook::add(LimitOrder &&order)
     }
 
     // If order not fully matched, add in order book
-    if (0 < order.left)
-    {
-        if (order.isBuyOrder)
-        {
+    if (0 < order.left) {
+        if (order.isBuyOrder) {
             std::unique_lock lock(buyMutex);
             buyOrders[order.price].insert(order);
-        }
-        else
-        {
+        } else {
             std::unique_lock lock(sellMutex);
             sellOrders[order.price].insert(order);
         }
@@ -142,44 +115,36 @@ bool OrderBook::add(LimitOrder &&order)
     return true;
 }
 
-bool OrderBook::amend(long long orderID, long quantity)
-{
+bool OrderBook::amend(long long orderID, long quantity) {
     map<long long, LimitOrder>::iterator it;
 
     std::unique_lock lock(ordersMutex);
     it = orders.find(orderID);
-    if (it == orders.end() || it->second.status == OrderStatus::cancelled || it->second.status == OrderStatus::executed)
-    {
+    if (it == orders.end() || it->second.status == OrderStatus::cancelled || it->second.status == OrderStatus::executed) {
         return false;
     }
 
     long delta = quantity - it->second.quantity;
-    if (it->second.left + delta < 0)
-    {
+    if (it->second.left + delta < 0) {
         return false;
     }
 
-    if (0 < delta)
-    {
+    if (0 < delta) {
         it->second.timestamp = chrono::duration_cast<chrono::microseconds>(chrono::high_resolution_clock::now().time_since_epoch());
     }
     it->second.quantity = quantity;
     it->second.left += delta;
 
     LimitOrder order = it->second;
-    if (order.isBuyOrder)
-    {
+    if (order.isBuyOrder) {
         buyOrders[order.price].update(move(order), buyMutex);
-    }
-    else
-    {
+    } else {
         sellOrders[order.price].update(move(order), sellMutex);
     }
     return true;
 }
 
-bool OrderBook::cancel(long long orderID)
-{
+bool OrderBook::cancel(long long orderID) {
     bool isBuyOrder;
     double price;
     {
@@ -187,8 +152,7 @@ bool OrderBook::cancel(long long orderID)
 
         std::unique_lock lock(ordersMutex);
         it = orders.find(orderID);
-        if (it == orders.end())
-        {
+        if (it == orders.end()) {
             return false;
         }
         it->second.status = OrderStatus::cancelled;
@@ -197,19 +161,14 @@ bool OrderBook::cancel(long long orderID)
     }
 
     bool success;
-    if (isBuyOrder)
-    {
+    if (isBuyOrder) {
         success = buyOrders[price].cancel(orderID, buyMutex);
-        if (buyOrders[price].quantity == 0)
-        {
+        if (buyOrders[price].quantity == 0) {
             buyOrders.erase(price);
         }
-    }
-    else
-    {
+    } else {
         success = sellOrders[price].cancel(orderID, buyMutex);
-        if (sellOrders[price].quantity == 0)
-        {
+        if (sellOrders[price].quantity == 0) {
             sellOrders.erase(price);
         }
     }
@@ -217,33 +176,25 @@ bool OrderBook::cancel(long long orderID)
 }
 
 // Fill at much as possible at a given price level
-void OrderBook::fill(PriceLevel &pl, LimitOrder &order)
-{
+void OrderBook::fill(PriceLevel &pl, LimitOrder &order) {
     set<LimitOrder>::iterator it;
     std::unique_lock lock(ordersMutex);
 
-    for (it = pl.orders.begin(); it != pl.orders.end(); it++)
-    {
-        if (order.left <= it->left)
-        {
+    for (it = pl.orders.begin(); it != pl.orders.end(); it++) {
+        if (order.left <= it->left) {
             pl.quantity -= order.left;
             it->left -= order.left;
             orders.at(it->id).left = it->left;
-            if (0 < it->left)
-            {
+            if (0 < it->left) {
                 orders.at(it->id).status = OrderStatus::partial;
                 it->status = OrderStatus::partial;
-            }
-            else
-            {
+            } else {
                 orders.at(it->id).status = OrderStatus::executed;
                 pl.orders.erase(it);
             }
             order.left = 0;
             return;
-        }
-        else
-        {
+        } else {
             LimitOrder oo = pl.orders.extract(it).value();
             pl.quantity -= oo.left;
             order.left -= oo.left;
@@ -253,59 +204,42 @@ void OrderBook::fill(PriceLevel &pl, LimitOrder &order)
     }
 }
 
-//
-void OrderBook::match(LimitOrder &order)
-{
-    if (order.isBuyOrder)
-    {
+void OrderBook::match(LimitOrder &order) {
+    if (order.isBuyOrder) {
         std::unique_lock lock(sellMutex);
         map<double, PriceLevel>::iterator it;
-        for (it = sellOrders.begin(); it != sellOrders.end();)
-        {
-            if (order.price < it->first)
-            {
+        for (it = sellOrders.begin(); it != sellOrders.end();) {
+            if (order.price < it->first) {
                 return;
             }
             order.status = OrderStatus::partial;
             fill(it->second, order);
-            if (it->second.nItems() == 0)
-            {
+            if (it->second.nItems() == 0) {
                 sellOrders.erase(it++);
-            }
-            else
-            {
+            } else {
                 ++it;
             }
-            if (order.left == 0)
-            {
+            if (order.left == 0) {
                 order.status = OrderStatus::executed;
                 return;
             }
         }
-    }
-    else
-    {
+    } else {
         std::unique_lock lock(buyMutex);
         map<double, PriceLevel>::reverse_iterator it;
-        for (it = buyOrders.rbegin(); it != buyOrders.rend();)
-        {
-            if (it->first < order.price)
-            {
+        for (it = buyOrders.rbegin(); it != buyOrders.rend();) {
+            if (it->first < order.price) {
                 return;
             }
             order.status = OrderStatus::partial;
             fill(it->second, order);
-            if (it->second.nItems() == 0)
-            {
+            if (it->second.nItems() == 0) {
                 // Idiomatic way to erase items and while keeping a valid reverse iterator
                 it = decltype(it){buyOrders.erase(next(it).base())};
-            }
-            else
-            {
+            } else {
                 ++it;
             }
-            if (order.left == 0)
-            {
+            if (order.left == 0) {
                 order.status = OrderStatus::executed;
                 return;
             }
@@ -313,8 +247,7 @@ void OrderBook::match(LimitOrder &order)
     }
 }
 
-int OrderBook::pos(LimitOrder &order)
-{
+int OrderBook::pos(LimitOrder &order) {
     map<double, PriceLevel> *m = order.isBuyOrder ? &buyOrders : &sellOrders;
     shared_mutex *mutex = order.isBuyOrder ? &buyMutex : &sellMutex;
     std::shared_lock lock(*mutex);
@@ -322,8 +255,7 @@ int OrderBook::pos(LimitOrder &order)
     return pl.pos(order.id);
 }
 
-string OrderBook::queryDepth(bool bid, int depth)
-{
+string OrderBook::queryDepth(bool bid, int depth) {
     double price = 0;
     long long quantity = 0;
     int nItems = 0;
@@ -332,28 +264,20 @@ string OrderBook::queryDepth(bool bid, int depth)
     map<double, PriceLevel> *m = bid ? &buyOrders : &sellOrders;
     shared_mutex *mutex = bid ? &buyMutex : &sellMutex;
     std::shared_lock lock(*mutex);
-    if (depth != 0 && depth <= m->size())
-    {
+    if (depth != 0 && depth <= m->size()) {
         int i = 0;
-        if (bid)
-        {
-            for (map<double, PriceLevel>::reverse_iterator it = m->rbegin(); it != m->rend(); ++it)
-            {
-                if (depth == ++i)
-                {
+        if (bid) {
+            for (map<double, PriceLevel>::reverse_iterator it = m->rbegin(); it != m->rend(); ++it) {
+                if (depth == ++i) {
                     price = it->first;
                     quantity = it->second.quantity;
                     nItems = it->second.nItems();
                     break;
                 }
             }
-        }
-        else
-        {
-            for (map<double, PriceLevel>::iterator it = m->begin(); it != m->end(); ++it)
-            {
-                if (depth == ++i)
-                {
+        } else {
+            for (map<double, PriceLevel>::iterator it = m->begin(); it != m->end(); ++it) {
+                if (depth == ++i) {
                     price = it->first;
                     quantity = it->second.quantity;
                     nItems = it->second.nItems();
@@ -368,8 +292,7 @@ string OrderBook::queryDepth(bool bid, int depth)
     return oss.str();
 }
 
-string OrderBook::queryOrder(long long orderID)
-{
+string OrderBook::queryOrder(long long orderID) {
     map<long long, LimitOrder>::iterator it;
     double price = 0;
     int pos = -1;
@@ -380,28 +303,26 @@ string OrderBook::queryOrder(long long orderID)
 
     std::shared_lock lock(ordersMutex);
     it = orders.find(orderID);
-    if (it != orders.end())
-    {
+    if (it != orders.end()) {
         price = it->second.price;
         quantity = it->second.quantity;
         left = it->second.left;
         orderType = it->second.isBuyOrder ? "buy" : "sell";
-        switch (it->second.status)
-        {
-        case open:
-            orderStatus = "open";
-            pos = this->pos(it->second);
-            break;
-        case partial:
-            orderStatus = "partial";
-            pos = this->pos(it->second);
-            break;
-        case executed:
-            orderStatus = "executed";
-            break;
-        case cancelled:
-            orderStatus = "cancelled";
-            break;
+        switch (it->second.status) {
+            case open:
+                orderStatus = "open";
+                pos = this->pos(it->second);
+                break;
+            case partial:
+                orderStatus = "partial";
+                pos = this->pos(it->second);
+                break;
+            case executed:
+                orderStatus = "executed";
+                break;
+            case cancelled:
+                orderStatus = "cancelled";
+                break;
         }
     }
 
